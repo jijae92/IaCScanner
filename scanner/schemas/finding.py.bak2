@@ -1,0 +1,72 @@
+"""Dataclasses describing the unified finding model."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
+
+from ..severity import Severity
+
+
+@dataclass
+class FindingLocation:
+    file_path: str
+    line: Optional[int] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        data: Dict[str, Any] = {"file_path": self.file_path}
+        if self.line is not None:
+            data["line"] = self.line
+        return data
+
+
+@dataclass
+class Finding:
+    tool_id: str
+    rule_id: str
+    severity: Severity
+    message: str
+    location: FindingLocation
+    resource: Optional[str] = None
+    fingerprint: str = field(default_factory=str)
+    tags: list[str] = field(default_factory=list)
+    extra: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "tool_id": self.tool_id,
+            "rule_id": self.rule_id,
+            "severity": self.severity.name,
+            "message": self.message,
+            "location": self.location.to_dict(),
+            "resource": self.resource,
+            "fingerprint": self.fingerprint or self.default_fingerprint,
+            "tags": list(self.tags),
+            "extra": self.extra,
+        }
+
+    @property
+    def default_fingerprint(self) -> str:
+        return f"{self.tool_id}:{self.rule_id}:{self.location.file_path}:{self.location.line or 0}"
+
+    def to_sarif(self) -> Dict[str, Any]:
+        return {
+            "tool": {"driver": {"name": self.tool_id}},
+            "results": [
+                {
+                    "ruleId": self.rule_id,
+                    "message": {"text": self.message},
+                    "level": self.severity.name.lower(),
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {"uri": self.location.file_path},
+                                "region": {"startLine": self.location.line or 1},
+                            }
+                        }
+                    ],
+                }
+            ],
+        }
+
+
+__all__ = ["Finding", "FindingLocation"]

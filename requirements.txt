@@ -1,0 +1,7 @@
+boto3
+pyyaml
+requests
+tabulate
+colorama
+sarif-om
+PyGithub

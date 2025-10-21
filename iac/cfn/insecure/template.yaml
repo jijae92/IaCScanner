@@ -1,0 +1,8 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Insecure demo template
+Resources:
+  PublicBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: iac-scanner-demo-cfn-public
+      AccessControl: PublicRead

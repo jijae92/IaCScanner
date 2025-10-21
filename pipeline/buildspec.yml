@@ -1,0 +1,33 @@
+version: 0.2
+env:
+  variables:
+    FAIL_ON: "MEDIUM"
+    COMMENT_TARGET: "codecommit"    # none|codecommit|github
+    BASELINE_MODE: "strict"
+  secrets-manager: {}
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - pip install -r requirements.txt
+      - pip install checkov==3.*
+      - curl -sSfL https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+      - mkdir -p artifacts
+  pre_build:
+    commands:
+      - python -m scanner --path iac/terraform/insecure --format json --out artifacts/scan.json --fail-on ${FAIL_ON} --allow config/.iac-allow.json --baseline config/.iac-baseline.json --update-baseline false --tools tfsec,checkov --comment ${COMMENT_TARGET}
+  build:
+    commands:
+      - python - <<'PY'
+from pathlib import Path, PurePath; p=Path("artifacts/scan.json"); print(p.read_text()[:4000])
+PY
+  post_build:
+    commands:
+      - |
+        # 종료코드는 CLI가 결정하므로 여기선 그대로 전달
+        echo "Done."
+artifacts:
+  files:
+    - artifacts/scan.json
+  discard-paths: yes

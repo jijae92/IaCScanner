@@ -1,0 +1,54 @@
+"""Utilities to combine findings from multiple tools into a unified schema."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Iterable, List, Sequence
+
+from .schemas.finding import Finding
+
+
+@dataclass
+class AggregateReport:
+    tool_id: str
+    findings: List[Finding] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "tool_id": self.tool_id,
+            "findings": [finding.to_dict() for finding in self.findings],
+            "metadata": self.metadata,
+        }
+
+    @staticmethod
+    def merge(reports: Sequence["AggregateReport"], result: Any) -> "AggregateReport":
+        merged = AggregateReport(tool_id="combined")
+        for report in reports:
+            merged.findings.extend(report.findings)
+        merged.metadata = {
+            "tool_ids": [report.tool_id for report in reports],
+            "fresh_count": len(result.fresh),
+            "suppressed_count": len(result.suppressed),
+        }
+        return merged
+
+    def to_sarif(self) -> dict[str, Any]:
+        runs = []
+        for finding in self.findings:
+            runs.append(finding.to_sarif())
+        return {
+            "version": "2.1.0",
+            "runs": runs,
+        }
+
+
+def aggregate_findings(*, tool_id: str, findings: Iterable[Finding]) -> AggregateReport:
+    report = AggregateReport(tool_id=tool_id)
+    report.findings.extend(findings)
+    report.metadata = {
+        "total": len(report.findings),
+    }
+    return report
+
+
+__all__ = ["AggregateReport", "aggregate_findings"]

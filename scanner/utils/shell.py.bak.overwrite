@@ -1,0 +1,63 @@
+"""Shell execution helpers with retries and timeouts."""
+from __future__ import annotations
+
+import subprocess
+import time
+from dataclasses import dataclass
+from typing import Sequence
+
+DEFAULT_TIMEOUT = 10
+DEFAULT_RETRIES = 2
+
+
+@dataclass
+class CompletedProcess:
+    command: Sequence[str]
+    returncode: int
+    stdout: str
+    stderr: str
+
+
+class ShellCommandError(RuntimeError):
+    def __init__(self, *, command: Sequence[str], returncode: int, stdout: str, stderr: str) -> None:
+        super().__init__(f"Command {command} failed with {returncode}")
+        self.command = command
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def run_command(command: Sequence[str], *, timeout: int = DEFAULT_TIMEOUT, retries: int = DEFAULT_RETRIES) -> CompletedProcess:
+    attempt = 0
+    backoff = 1.0
+    while True:
+        try:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=timeout,
+            )
+            return CompletedProcess(
+                command=command,
+                returncode=completed.returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            if attempt >= retries:
+                stdout = exc.stdout if isinstance(exc, subprocess.CalledProcessError) else ""
+                stderr = exc.stderr if isinstance(exc, subprocess.CalledProcessError) else str(exc)
+                raise ShellCommandError(
+                    command=command,
+                    returncode=getattr(exc, "returncode", -1),
+                    stdout=stdout,
+                    stderr=stderr,
+                ) from exc
+            time.sleep(backoff)
+            backoff *= 2
+            attempt += 1
+
+
+__all__ = ["CompletedProcess", "ShellCommandError", "run_command"]

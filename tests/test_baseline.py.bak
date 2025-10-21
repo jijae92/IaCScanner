@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from scanner.baseline import BaselineManager
+from scanner.schemas.finding import Finding, FindingLocation
+from scanner.severity import Severity
+
+
+def test_baseline_filters_existing(tmp_path: Path) -> None:
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text('{
+  "tfsec:AWS001:file.tf:1": "2024-01-01T00:00:00"
+}', encoding="utf-8")
+    allowlist_path = tmp_path / "allow.json"
+    allowlist_path.write_text('{}', encoding="utf-8")
+
+    manager = BaselineManager(baseline_path=baseline_path, allowlist_path=allowlist_path)
+    manager.load()
+
+    findings = [
+        Finding(
+            tool_id="tfsec",
+            rule_id="AWS001",
+            severity=Severity.LOW,
+            message="demo",
+            location=FindingLocation(file_path="file.tf", line=1),
+            fingerprint="tfsec:AWS001:file.tf:1",
+        )
+    ]
+
+    result = manager.apply(findings=findings)
+    assert not result.fresh
+    assert len(result.suppressed) == 1

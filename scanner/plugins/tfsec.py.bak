@@ -1,0 +1,68 @@
+"""tfsec integration."""
+from __future__ import annotations
+
+import json
+import logging
+from pathlib import Path
+from typing import List
+
+from ..schemas.finding import Finding, FindingLocation
+from ..severity import Severity
+from ..utils.shell import ShellCommandError, run_command
+
+
+class TfsecScanner:
+    """Run tfsec and translate output into Finding objects."""
+
+    def scan(self, *, target_dir: Path, dry_run: bool = False) -> List[Finding]:
+        if dry_run:
+            logging.debug("tfsec dry-run mode enabled; returning synthetic finding.")
+            return [
+                Finding(
+                    tool_id="tfsec",
+                    rule_id="AWS053",
+                    severity=Severity.MEDIUM,
+                    message="Example tfsec finding (dry-run).",
+                    location=FindingLocation(file_path=str(target_dir / "example.tf"), line=1),
+                    fingerprint="tfsec:AWS053:example.tf:1",
+                )
+            ]
+        try:
+            completed = run_command([
+                "tfsec",
+                str(target_dir),
+                "--format",
+                "json",
+            ])
+        except ShellCommandError as exc:
+            logging.error("tfsec execution failed: %s", exc)
+            return []
+        try:
+            parsed = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            logging.error("Unable to parse tfsec output: %s", exc)
+            return []
+        return self._convert(parsed)
+
+    def _convert(self, payload: dict) -> List[Finding]:
+        findings: List[Finding] = []
+        for issue in payload.get("results", []):
+            location = issue.get("location", {})
+            file_path = str(location.get("filename", "unknown"))
+            start_line = location.get("start_line")
+            fingerprint = f"{issue.get('rule_id', 'unknown')}:{file_path}:{start_line or 0}"
+            finding = Finding(
+                tool_id="tfsec",
+                rule_id=str(issue.get("rule_id", "unknown")),
+                severity=Severity.from_string(str(issue.get("severity", "LOW"))),
+                message=str(issue.get("description", "tfsec finding")),
+                location=FindingLocation(file_path=file_path, line=start_line),
+                resource=str(issue.get("resource", "")) or None,
+                fingerprint=fingerprint,
+                extra={"provider": issue.get("provider")},
+            )
+            findings.append(finding)
+        return findings
+
+
+__all__ = ["TfsecScanner"]

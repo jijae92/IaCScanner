@@ -1,0 +1,85 @@
+"""Baseline and allowlist management."""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Iterable, List
+
+from .schemas.finding import Finding
+
+
+@dataclass
+class BaselineResult:
+    fresh: List[Finding]
+    suppressed: List[Finding]
+
+
+class BaselineManager:
+    """Load and evaluate baseline/allowlist state."""
+
+    def __init__(self, *, baseline_path: Path, allowlist_path: Path) -> None:
+        self.baseline_path = baseline_path
+        self.allowlist_path = allowlist_path
+        self.baseline: dict[str, str] = {}
+        self.allowlist: dict[str, str] = {}
+
+    def load(self) -> None:
+        self.baseline = self._load_json(self.baseline_path)
+        self.allowlist = self._load_json(self.allowlist_path)
+
+    def apply(self, *, findings: Iterable[Finding], update: bool = False) -> BaselineResult:
+        fresh: list[Finding] = []
+        suppressed: list[Finding] = []
+        for finding in findings:
+            key = finding.fingerprint or finding.default_fingerprint
+            if self._is_allowed(key):
+                suppressed.append(finding)
+                continue
+            if key in self.baseline:
+                suppressed.append(finding)
+                continue
+            fresh.append(finding)
+        if update and fresh:
+            for finding in fresh:
+                key = finding.fingerprint or finding.default_fingerprint
+                self.baseline[key] = datetime.utcnow().isoformat()
+            self.save_baseline()
+        return BaselineResult(fresh=fresh, suppressed=suppressed)
+
+    def save_baseline(self) -> None:
+        self._write_json(self.baseline_path, self.baseline)
+
+    def _is_allowed(self, key: str) -> bool:
+        expiry = self.allowlist.get(key)
+        if not expiry:
+            return False
+        try:
+            expires_at = datetime.fromisoformat(expiry)
+        except ValueError:
+            return False
+        return expires_at >= datetime.utcnow()
+
+    @staticmethod
+    def _load_json(path: Path) -> dict[str, str]:
+        if not path.exists():
+            return {}
+        with path.open("r", encoding="utf-8") as handle:
+            try:
+                data = json.load(handle)
+                if isinstance(data, dict):
+                    return {str(k): str(v) for k, v in data.items()}
+            except json.JSONDecodeError:
+                pass
+        return {}
+
+    @staticmethod
+    def _write_json(path: Path, data: dict[str, str]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+
+
+__all__ = ["BaselineManager", "BaselineResult"]
