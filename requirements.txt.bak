@@ -4,3 +4,4 @@ requests
 tabulate
 colorama
 sarif-om
+PyGithub
