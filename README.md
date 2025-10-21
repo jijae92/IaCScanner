@@ -258,20 +258,26 @@ artifacts:
 
 ---
 
-## 폴더 구조(예시)
+## 폴더 구조
 
 ```
-.
-├─ iacscanner/           # 패키지(모듈)
-│  ├─ parsers/           # terraform/k8s/cfn 파서
-│  ├─ rules/             # 코어 규칙(카테고리/ID)
-│  ├─ reporters/         # table/json/sarif/junit
-│  └─ cli.py             # 엔트리포인트
-├─ tests/                # pytest
-├─ examples/             # 샘플 IaC
-├─ artifacts/            # 리포트 출력(생성됨)
+IaCScanner/
+├─ config/              # 스캐너/파이프라인 등 구성 샘플(환경별 값, 정책 등)
+├─ docs/                # 개요/데모 문서(아키텍처·사용 가이드)
+├─ iac/                 # 예시 IaC 소스(Terraform 등) 또는 테스트용 템플릿
+├─ pipeline/            # CodeBuild/CodePipeline 등 파이프라인 자원/샘플
+├─ scanner/             # 스캐너 파이썬 코드(플러그인·규칙·CLI 등)
+├─ scripts/             # 유틸 스크립트(로컬 실행/CI 헬퍼)
+├─ tests/               # pytest 기반 테스트
+├─ .gitignore
+├─ .python-version
+├─ AGENTS.md
+├─ Makefile
+├─ Makefile.bak
+├─ README.md
 ├─ requirements.txt
-└─ README.md
+└─ requirements.txt.bak
+
 ```
 
 > 실제 디렉터리/파일은 본 리포지토리를 기준으로 확인하세요.
